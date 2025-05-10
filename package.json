@@ -1,0 +1,35 @@
+{
+  "name": "crud-api",
+  "version": "1.0.0",
+  "description": "RSSchool task CRUD API",
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon",
+    "build": "tsc index.ts",
+    "start": "ts-node index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ArturKhelshtein/CRUD-API.git"
+  },
+  "keywords": [
+    "nodejs",
+    "assignments",
+    "ArturKhelshtein"
+  ],
+  "author": "ArturKhelshtein",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ArturKhelshtein/CRUD-API/issues"
+  },
+  "homepage": "https://github.com/ArturKhelshtein/CRUD-API#readme",
+  "devDependencies": {
+    "dotenv": "^16.5.0",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
