@@ -1,17 +1,11 @@
-const http = require('node:http');
-const { URL: URLParser } = require('url');
-const { v4: uuidV4, validate: validateUuid} = require('uuid');
+import http from 'node:http';
+import { URL as URLParser } from 'url';
+import { v4 as uuidV4, validate as validateUuid } from 'uuid';
+import type { IUser } from './src/types/user.js';
 
 const { PORT = 8000 } = process.env;
 
-interface IUser {
-    id: string;
-    username: string;
-    age: number;
-    hobbies: string[];
-}
-
-const users : IUser[] = [];
+const users: IUser[] = [];
 
 const server = http.createServer((req: any, res: any) => {
     const url = new URLParser(req.url || '', `http://${req.headers.host}`);
