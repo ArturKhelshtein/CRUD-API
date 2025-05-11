@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { controller } from './controller';
 
-export const handleRoutes = (req: IncomingMessage, res: ServerResponse) => {
+export const handleRoutes = async (req: IncomingMessage, res: ServerResponse) => {
     const pathname = req.url?.split('?')[0];
     const method = req.method;
 
@@ -11,13 +11,15 @@ export const handleRoutes = (req: IncomingMessage, res: ServerResponse) => {
     }
 
     if (method === 'GET' && pathname?.startsWith('/api/users/')) {
-        const userId = pathname.split('/').pop();
-        if (userId) {
-            controller.getUserById(req, res, userId);
-        }
+        controller.getUserById(req, res);
+        return;
+    }
+
+    if (method === 'POST' && pathname === '/api/users') {
+        controller.postUser(req, res);
         return;
     }
 
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ message: 'Route not found' }));
-}; 
+};
