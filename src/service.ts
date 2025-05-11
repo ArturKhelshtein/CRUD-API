@@ -16,6 +16,16 @@ class Service {
         return newUser;
     }
 
+    updateUser(updateUser: IUser): IUser {
+        const user: IUser = this.users.find(user => user?.id === updateUser.id)!;
+
+        user.username = updateUser.username;
+        user.age = updateUser.age;
+        user.hobbies = updateUser.hobbies;
+
+        return user;
+    }
+
     deleteUser(id: string): boolean {
         const initialLength = this.users.length;
         this.users = this.users.filter(user => user.id !== id);
