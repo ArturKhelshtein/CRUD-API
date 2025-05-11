@@ -10,7 +10,7 @@
         "forceConsistentCasingInFileNames": true,
         "outDir": "dist"
     },
-    "include": ["index.ts"],
+    "include": ["./**/*.ts"],
     "ts-node": {
         "esm": true,
         "experimentalSpecifierResolution": "node"

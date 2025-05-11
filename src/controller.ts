@@ -1,9 +1,9 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { v4 as uuidV4, validate as validateUuid } from 'uuid';
 
-import { service } from './service';
-import { httpStatus, httpMessages } from './constants';
-import { sendResponse } from './utils'
+import { service } from './service.js';
+import { httpStatus, httpMessages } from './constants.js';
+import { sendResponse } from './utils.js'
 
 export const controller = {
     getAllUsers(req: IncomingMessage, res: ServerResponse) {

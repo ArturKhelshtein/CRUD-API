@@ -1,8 +1,8 @@
 import { IncomingMessage, ServerResponse } from 'http';
 
-import { controller } from './controller';
-import { httpStatus, httpMessages } from './constants';
-import { sendResponse } from './utils';
+import { controller } from './controller.js';
+import { httpStatus, httpMessages } from './constants.js';
+import { sendResponse } from './utils.js';
 
 export const routes = async (req: IncomingMessage, res: ServerResponse) => {
     try {

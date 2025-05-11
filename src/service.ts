@@ -1,4 +1,4 @@
-import { IUser } from './types/user';
+import { IUser } from './types/user.js';
 
 class Service {
     private users: IUser[] = [];
