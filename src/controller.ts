@@ -1,21 +1,9 @@
 import { IncomingMessage, ServerResponse } from 'http';
-import { service } from './service';
 import { v4 as uuidV4, validate as validateUuid } from 'uuid';
 
-const httpStatus = {
-    OK: 200,
-    CREATED: 201,
-    DELETED: 204,
-    BAD_REQUEST: 400,
-    NOT_FOUND: 404,
-};
-
-const httpMessages = {
-    INVALID_DATA: 'Invalid user data',
-    INVALID_JSON: 'Invalid JSON body',
-    INVALID_UUID: 'Invalid UUID',
-    USER_NOT_FOUND: 'User not found',
-};
+import { service } from './service';
+import { httpStatus, httpMessages } from './constants';
+import { sendResponse } from './utils'
 
 export const controller = {
     getAllUsers(req: IncomingMessage, res: ServerResponse) {
@@ -83,7 +71,6 @@ export const controller = {
         }
 
         try {
-            console.log(5)
             const body = (await getRequestBody(req)) as { username: string; age: number; hobbies: string[] };
             const { username, age, hobbies = [] } = body;
 
@@ -138,15 +125,6 @@ function isValidUser(username: string, age: number, hobbies: string[]) {
         return true;
     }
     return false;
-}
-
-function sendResponse(res: ServerResponse, statusCode: number, body?: any) {
-    res.writeHead(statusCode, { 'Content-Type': 'application/json' });
-    if (body) {
-        res.end(JSON.stringify(body));
-    } else {
-        res.end();
-    }
 }
 
 function getUserIdByReq(req: IncomingMessage) {
