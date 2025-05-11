@@ -7,32 +7,37 @@ const httpStatus = {
     CREATED: 201,
     DELETED: 204,
     BAD_REQUEST: 400,
-    NOT_FOUND: 404
-}
+    NOT_FOUND: 404,
+};
+
+const httpMessages = {
+    INVALID_DATA: 'Invalid user data',
+    INVALID_JSON: 'Invalid JSON body',
+    INVALID_UUID: 'Invalid UUID',
+    USER_NOT_FOUND: 'User not found',
+};
 
 export const controller = {
     getAllUsers(req: IncomingMessage, res: ServerResponse) {
-        res.writeHead(httpStatus.OK, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(service.getAllUsers()));
+        sendResponse(res, httpStatus.OK, service.getAllUsers());
     },
 
     getUserById(req: IncomingMessage, res: ServerResponse) {
         const userId = getUserIdByReq(req);
 
         if (!userId || !validateUuid(userId)) {
-            responseInvalidUUID(res);
+            sendResponse(res, httpStatus.BAD_REQUEST, httpMessages.INVALID_UUID);
             return;
         }
 
         const user = service.getUserById(userId!);
 
         if (!user) {
-            responseNotFoundUser(res);
+            sendResponse(res, httpStatus.NOT_FOUND, httpMessages.USER_NOT_FOUND)
             return;
         }
 
-        res.writeHead(httpStatus.OK, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(user));
+        sendResponse(res, httpStatus.OK, user)
         return;
     },
 
@@ -48,8 +53,7 @@ export const controller = {
                 hobbies.every(hobby => typeof hobby === 'string');
 
             if (!isValid) {
-                res.writeHead(httpStatus.BAD_REQUEST, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ message: 'Invalid user data' }));
+                sendResponse(res, httpStatus.BAD_REQUEST, httpMessages.INVALID_DATA);
                 return;
             }
 
@@ -62,12 +66,10 @@ export const controller = {
 
             service.postUser(newUser);
 
-            res.writeHead(httpStatus.CREATED, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(newUser));
+            sendResponse(res, httpStatus.CREATED, newUser);
             return;
         } catch {
-            res.writeHead(httpStatus.BAD_REQUEST, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ message: 'Invalid JSON body' }));
+            sendResponse(res, httpStatus.BAD_REQUEST, httpMessages.INVALID_JSON);
             return;
         }
     },
@@ -76,35 +78,33 @@ export const controller = {
         const userId = getUserIdByReq(req);
 
         if (!userId || !validateUuid(userId)) {
-            responseInvalidUUID(res);
+            sendResponse(res, httpStatus.BAD_REQUEST, httpMessages.INVALID_UUID);
             return;
         }
 
         const isUserDeleted = service.deleteUser(userId!);
 
         if (!isUserDeleted) {
-            responseNotFoundUser(res);
+            sendResponse(res, httpStatus.NOT_FOUND, httpMessages.USER_NOT_FOUND)
             return;
         }
 
-        res.writeHead(httpStatus.DELETED, { 'Content-Type': 'application/json' });
-        res.end();
+        sendResponse(res, httpStatus.DELETED)
         return;
     },
 };
 
+function sendResponse(res: ServerResponse, statusCode: number, body?: any) {
+    res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+    if (body) {
+        res.end(JSON.stringify(body));
+    } else {
+        res.end();
+    }
+}
+
 function getUserIdByReq(req: IncomingMessage) {
     return req.url?.split('?')[0].split('/').pop();
-}
-
-function responseInvalidUUID(res: ServerResponse) {
-    res.writeHead(httpStatus.BAD_REQUEST, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ message: 'Invalid UUID' }));
-}
-
-function responseNotFoundUser(res: ServerResponse) {
-    res.writeHead(httpStatus.NOT_FOUND, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ message: 'User not found' }));
 }
 
 function getRequestBody(req: IncomingMessage) {
