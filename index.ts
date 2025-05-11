@@ -1,6 +1,7 @@
 import http, { IncomingMessage, ServerResponse } from 'node:http';
 import process from 'node:process';
 import { routes } from './src/routes.js';
+import 'dotenv/config'
 
 const { PORT = 8000 } = process.env;
 
