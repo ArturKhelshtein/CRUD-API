@@ -15,6 +15,12 @@ class Service {
         this.users.push(newUser);
         return newUser;
     }
+
+    deleteUser(id: string): boolean {
+        const initialLength = this.users.length;
+        this.users = this.users.filter(user => user.id !== id);
+        return this.users.length < initialLength;
+    }
 }
 
 export const service = new Service();
