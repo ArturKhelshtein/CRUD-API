@@ -4,7 +4,8 @@ import cluster from 'node:cluster';
 import os from 'node:os';
 import 'dotenv/config';
 
-import { handler } from './index.js';
+import { routes } from './src/routes';
+import { IWorkerMessage, IPrimaryMessage } from './src/types/cluster.js';
 
 const PORT = Number(process.env.PORT) || 4000;
 
@@ -39,7 +40,7 @@ if (cluster.isPrimary) {
             }
         );
 
-        proxyReq.on('error', (err) => {
+        proxyReq.on('error', err => {
             console.error(`Proxy request error: ${err.message}`);
             res.writeHead(502);
             res.end('Bad Gateway');
@@ -58,17 +59,101 @@ if (cluster.isPrimary) {
         console.log(`Worker died! Pid: ${worker.process.pid}. Code: ${code}`);
         cluster.fork();
     });
+
+    cluster.on('message', (worker, message: IWorkerMessage) => {
+        if (message.type === 'request') {
+            const { method, pathname, body } = message;
+
+            const req = {
+                method,
+                url: pathname,
+                body,
+            };
+
+            const res = {
+                writeHead: (statusCode: number, headers: any) => {
+                    worker.send({ type: 'response', statusCode, body: null });
+                },
+                end: (body: any) => {
+                    worker.send({ type: 'response', statusCode: 200, body });
+                },
+            };
+
+            routes(req as any, res as any);
+        }
+    });
 }
 
 if (cluster.isWorker) {
     const workerPort = Number(process.env.WORKER_PORT);
+    const pendingResponses = new Map<string, ServerResponse>();
 
     if (isNaN(workerPort) || workerPort < 0 || workerPort >= 65536) {
         console.error(`Invalid worker port: ${process.env.WORKER_PORT}`);
         process.exit(1);
     }
 
-    const server = http.createServer(handler);
+    process.on('message', (message: IPrimaryMessage) => {
+        if (message.type === 'response') {
+            if (message.id) {
+                const res = pendingResponses.get(message.id);
+                if (res) {
+                    res.writeHead(message.statusCode, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(message.body));
+                    pendingResponses.delete(message.id);
+                }
+            } else {
+                const url = message.body?.url;
+                if (url) {
+                    const res = pendingResponses.get(url);
+                    if (res) {
+                        res.writeHead(message.statusCode, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify(message.body));
+                        pendingResponses.delete(url);
+                    }
+                }
+            }
+        }
+    });
+
+    const server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
+        const pathname = req.url?.split('?')[0];
+        const method = req.method;
+
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+
+        req.on('end', () => {
+            try {
+                const parsedBody = body ? JSON.parse(body) : null;
+                if (process.send) {
+                    if (method === 'POST') {
+                        const tempId = Date.now().toString();
+                        pendingResponses.set(tempId, res);
+                    } else {
+                        pendingResponses.set(pathname || '', res);
+                    }
+
+                    process.send({
+                        type: 'request',
+                        method,
+                        pathname,
+                        body: parsedBody,
+                    });
+                }
+            } catch (error) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Invalid JSON' }));
+            }
+        });
+
+        req.on('error', error => {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Internal Server Error' }));
+        });
+    });
 
     server.listen(workerPort, () => {
         console.log(`Worker started. Pid: ${process.pid} on port: ${workerPort}`);
