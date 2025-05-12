@@ -9,5 +9,5 @@ export interface IPrimaryMessage {
     type: 'response';
     statusCode: number;
     body: any;
-    id?: string;
+    pathname: string;
 }

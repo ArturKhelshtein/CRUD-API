@@ -67,15 +67,33 @@ if (cluster.isPrimary) {
             const req = {
                 method,
                 url: pathname,
-                body,
+                on: (event: string, callback: Function) => {
+                    if (event === 'data') {
+                        callback(JSON.stringify(body));
+                    }
+                    if (event === 'end') {
+                        callback();
+                    }
+                }
             };
 
             const res = {
                 writeHead: (statusCode: number, headers: any) => {
-                    worker.send({ type: 'response', statusCode, body: null });
                 },
                 end: (body: any) => {
-                    worker.send({ type: 'response', statusCode: 200, body });
+                    let statusCode = 200;
+                    if (method === 'POST') {
+                        statusCode = 201;
+                    } else if (method === 'DELETE') {
+                        statusCode = 204;
+                    }
+
+                    worker.send({ 
+                        type: 'response', 
+                        statusCode, 
+                        body: method === 'DELETE' ? null : body,
+                        pathname: message.pathname
+                    });
                 },
             };
 
@@ -93,31 +111,8 @@ if (cluster.isWorker) {
         process.exit(1);
     }
 
-    process.on('message', (message: IPrimaryMessage) => {
-        if (message.type === 'response') {
-            if (message.id) {
-                const res = pendingResponses.get(message.id);
-                if (res) {
-                    res.writeHead(message.statusCode, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify(message.body));
-                    pendingResponses.delete(message.id);
-                }
-            } else {
-                const url = message.body?.url;
-                if (url) {
-                    const res = pendingResponses.get(url);
-                    if (res) {
-                        res.writeHead(message.statusCode, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify(message.body));
-                        pendingResponses.delete(url);
-                    }
-                }
-            }
-        }
-    });
-
     const server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
-        const pathname = req.url?.split('?')[0];
+        const pathname = req.url?.split('?')[0] || '';
         const method = req.method;
 
         let body = '';
@@ -129,19 +124,15 @@ if (cluster.isWorker) {
             try {
                 const parsedBody = body ? JSON.parse(body) : null;
                 if (process.send) {
-                    if (method === 'POST') {
-                        const tempId = Date.now().toString();
-                        pendingResponses.set(tempId, res);
-                    } else {
-                        pendingResponses.set(pathname || '', res);
-                    }
+                    pendingResponses.set(pathname, res);
 
-                    process.send({
+                    const message = {
                         type: 'request',
                         method,
                         pathname,
                         body: parsedBody,
-                    });
+                    };
+                    process.send(message);
                 }
             } catch (error) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -155,8 +146,26 @@ if (cluster.isWorker) {
         });
     });
 
+    process.on('message', (message: IPrimaryMessage) => {
+        if (message.type === 'response') {
+            const res = pendingResponses.get(message.pathname);
+            if (res) {
+                res.writeHead(message.statusCode, { 'Content-Type': 'application/json' });
+                if (message.statusCode !== 204) {
+                    const responseBody = typeof message.body === 'string' 
+                        ? JSON.parse(message.body) 
+                        : message.body;
+                    res.end(JSON.stringify(responseBody, null, 2));
+                } else {
+                    res.end();
+                }
+                pendingResponses.delete(message.pathname);
+            }
+        }
+    });
+
     server.listen(workerPort, () => {
-        console.log(`Worker started. Pid: ${process.pid} on port: ${workerPort}`);
+        console.log(`Worker started. PID: ${process.pid} on port: ${workerPort}`);
     });
 
     ['SIGINT', 'SIGTERM', 'SIGUSR2'].forEach(signal => {
