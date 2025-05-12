@@ -10,7 +10,7 @@ const handler = (req: IncomingMessage, res: ServerResponse) => {
     routes(req, res);
 };
 
-if (process.env.NODE_ENV !== 'test' && !process.env.WORKER_PORT) {
+if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'cluster') {
     const server = http.createServer(handler);
 
     server.listen(PORT, () => {
