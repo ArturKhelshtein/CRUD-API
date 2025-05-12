@@ -12,7 +12,7 @@
         "build": "tsc",
         "start:prod": "npm run build && node dist/index.js",
         "test": "cross-env NODE_ENV=test jest",
-        "start:multi": "nodemon --watch ./ --ext ts --exec \"node --loader ts-node/esm\" NODE_ENV=cluster cluster.ts"
+        "start:multi": "cross-env NODE_ENV=cluster nodemon --watch ./ --ext ts --exec \"node --loader ts-node/esm\" cluster.ts"
     },
     "repository": {
         "type": "git",

@@ -4,20 +4,55 @@ import cluster from 'node:cluster';
 import os from 'node:os';
 import 'dotenv/config';
 
-import { routes } from './src/routes.js';
 import { handler } from './index.js';
 
 const PORT = Number(process.env.PORT) || 4000;
 
 if (cluster.isPrimary) {
-    const cpusCount: number = os.cpus().length;
+    const cpusCount = os.cpus().length;
+    const workersCount = cpusCount - 1;
+
     console.log(`The total count of CPUs: ${cpusCount}`);
     console.log(`Primary started. Pid: ${process.pid}`);
 
-    for (let i: number = 1; i < cpusCount; i++) {
+    for (let i: number = 1; i <= workersCount; i++) {
         const workerPort = PORT + i;
         cluster.fork({ WORKER_PORT: workerPort.toString() });
     }
+
+    let currentWorker = 1;
+
+    const loadBalancer = http.createServer((req: IncomingMessage, res: ServerResponse) => {
+        const targetPort = PORT + currentWorker;
+
+        const proxyReq = http.request(
+            {
+                hostname: 'localhost',
+                port: targetPort,
+                path: req.url,
+                method: req.method,
+                headers: req.headers,
+            },
+            proxyRes => {
+                res.writeHead(proxyRes.statusCode || 500, proxyRes.headers);
+                proxyRes.pipe(res, { end: true });
+            }
+        );
+
+        proxyReq.on('error', (err) => {
+            console.error(`Proxy request error: ${err.message}`);
+            res.writeHead(502);
+            res.end('Bad Gateway');
+        });
+
+        req.pipe(proxyReq, { end: true });
+
+        currentWorker = currentWorker >= workersCount ? 1 : currentWorker + 1;
+    });
+
+    loadBalancer.listen(PORT, () => {
+        console.log(`Load balancer running on port ${PORT}`);
+    });
 
     cluster.on('exit', (worker, code, signal) => {
         console.log(`Worker died! Pid: ${worker.process.pid}. Code: ${code}`);
@@ -27,8 +62,7 @@ if (cluster.isPrimary) {
 
 if (cluster.isWorker) {
     const workerPort = Number(process.env.WORKER_PORT);
-    console.log('worker'+ workerPort)
-    
+
     if (isNaN(workerPort) || workerPort < 0 || workerPort >= 65536) {
         console.error(`Invalid worker port: ${process.env.WORKER_PORT}`);
         process.exit(1);
@@ -40,18 +74,10 @@ if (cluster.isWorker) {
         console.log(`Worker started. Pid: ${process.pid} on port: ${workerPort}`);
     });
 
-    process.on('SIGINT', () => {
-        console.log('Signal SIGINT');
-        server.close(() => process.exit(0));
-    });
-
-    process.on('SIGTERM', () => {
-        console.log('Signal SIGTERM');
-        server.close(() => process.exit(0));
-    });
-
-    process.on('SIGUSR2', () => {
-        console.log('Signal SIGUSR2');
-        server.close(() => process.exit(1));
+    ['SIGINT', 'SIGTERM', 'SIGUSR2'].forEach(signal => {
+        process.on(signal, () => {
+            console.log(`Signal ${signal}`);
+            server.close(() => process.exit(signal === 'SIGUSR2' ? 1 : 0));
+        });
     });
 }
