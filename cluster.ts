@@ -4,10 +4,10 @@ import cluster from 'node:cluster';
 import os from 'node:os';
 import 'dotenv/config';
 
-import { routes } from './src/routes';
-import { IWorkerMessage, IPrimaryMessage } from './src/types/cluster.js';
+import { handler } from './index.js';
 
 const PORT = Number(process.env.PORT) || 4000;
+const MAIN_SERVER_PORT = Number(process.env.MAIN_SERVER_PORT) || 3000;
 
 if (cluster.isPrimary) {
     const cpusCount = os.cpus().length;
@@ -15,6 +15,11 @@ if (cluster.isPrimary) {
 
     console.log(`The total count of CPUs: ${cpusCount}`);
     console.log(`Primary started. Pid: ${process.pid}`);
+
+    const mainServer = http.createServer(handler);
+    mainServer.listen(MAIN_SERVER_PORT, () => {
+        console.log(`Main server running on port ${MAIN_SERVER_PORT}`);
+    });
 
     for (let i: number = 1; i <= workersCount; i++) {
         const workerPort = PORT + i;
@@ -59,52 +64,10 @@ if (cluster.isPrimary) {
         console.log(`Worker died! Pid: ${worker.process.pid}. Code: ${code}`);
         cluster.fork();
     });
-
-    cluster.on('message', (worker, message: IWorkerMessage) => {
-        if (message.type === 'request') {
-            const { method, pathname, body } = message;
-
-            const req = {
-                method,
-                url: pathname,
-                on: (event: string, callback: Function) => {
-                    if (event === 'data') {
-                        callback(JSON.stringify(body));
-                    }
-                    if (event === 'end') {
-                        callback();
-                    }
-                }
-            };
-
-            const res = {
-                writeHead: (statusCode: number, headers: any) => {
-                },
-                end: (body: any) => {
-                    let statusCode = 200;
-                    if (method === 'POST') {
-                        statusCode = 201;
-                    } else if (method === 'DELETE') {
-                        statusCode = 204;
-                    }
-
-                    worker.send({ 
-                        type: 'response', 
-                        statusCode, 
-                        body: method === 'DELETE' ? null : body,
-                        pathname: message.pathname
-                    });
-                },
-            };
-
-            routes(req as any, res as any);
-        }
-    });
 }
 
 if (cluster.isWorker) {
     const workerPort = Number(process.env.WORKER_PORT);
-    const pendingResponses = new Map<string, ServerResponse>();
 
     if (isNaN(workerPort) || workerPort < 0 || workerPort >= 65536) {
         console.error(`Invalid worker port: ${process.env.WORKER_PORT}`);
@@ -112,56 +75,27 @@ if (cluster.isWorker) {
     }
 
     const server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
-        const pathname = req.url?.split('?')[0] || '';
-        const method = req.method;
-
-        let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
-
-        req.on('end', () => {
-            try {
-                const parsedBody = body ? JSON.parse(body) : null;
-                if (process.send) {
-                    pendingResponses.set(pathname, res);
-
-                    const message = {
-                        type: 'request',
-                        method,
-                        pathname,
-                        body: parsedBody,
-                    };
-                    process.send(message);
-                }
-            } catch (error) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        const proxyReq = http.request(
+            {
+                hostname: 'localhost',
+                port: MAIN_SERVER_PORT,
+                path: req.url,
+                method: req.method,
+                headers: req.headers,
+            },
+            proxyRes => {
+                res.writeHead(proxyRes.statusCode || 500, proxyRes.headers);
+                proxyRes.pipe(res, { end: true });
             }
+        );
+
+        proxyReq.on('error', err => {
+            console.error(`Proxy request error: ${err.message}`);
+            res.writeHead(502);
+            res.end('Bad Gateway');
         });
 
-        req.on('error', error => {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Internal Server Error' }));
-        });
-    });
-
-    process.on('message', (message: IPrimaryMessage) => {
-        if (message.type === 'response') {
-            const res = pendingResponses.get(message.pathname);
-            if (res) {
-                res.writeHead(message.statusCode, { 'Content-Type': 'application/json' });
-                if (message.statusCode !== 204) {
-                    const responseBody = typeof message.body === 'string' 
-                        ? JSON.parse(message.body) 
-                        : message.body;
-                    res.end(JSON.stringify(responseBody, null, 2));
-                } else {
-                    res.end();
-                }
-                pendingResponses.delete(message.pathname);
-            }
-        }
+        req.pipe(proxyReq, { end: true });
     });
 
     server.listen(workerPort, () => {

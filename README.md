@@ -13,7 +13,7 @@
    git clone git@github.com:ArturKhelshtein/CRUD-API.git
    cd CRUD-API
    ```
-   
+
 3. Set dependencies:
 
    ```bash
@@ -76,4 +76,10 @@ npm run test
 
 - All users are stored as objects with the fields: `id`, `username`, `age`, `hobbies`.
 - Errors are handled correctly, and the server returns appropriate messages.
-- The value of the port on which the application runs is stored in the `.env` file.
+- The value of the port and main server port (for clusters) on which the application runs is stored in the `.env` file.
+ `.env` example:
+
+  ```
+  PORT=4000
+  MAIN_SERVER_PORT=3000
+  ```
