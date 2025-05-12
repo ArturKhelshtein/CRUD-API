@@ -38,6 +38,16 @@ To build and run the application in prod mode, use:
 npm run start:prod
 ```
 
+## Clustering
+
+The application supports clustering mode for improved performance. To run in cluster mode, use:
+
+```bash
+npm run start:multi
+```
+
+This will start multiple instances of the application utilizing all available CPU cores.
+
 ## API Endpoints
 
 ### Users
